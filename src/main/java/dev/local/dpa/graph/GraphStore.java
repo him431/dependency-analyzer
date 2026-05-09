@@ -17,12 +17,17 @@ public class GraphStore {
     private final Map<String, Map<String, Edge>> forward = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> reverse = new ConcurrentHashMap<>();
     private final Map<String, ServiceNode> nodes = new ConcurrentHashMap<>();
+    private final Map<EdgeKey, Instant> tombstones = new ConcurrentHashMap<>();
 
     public GraphStore(AppProps props) { this.props = props; }
 
     public void observe(String source, String target, Instant ts, long latencyMs, Status status) {
         ensureNode(source);
         ensureNode(target);
+
+        Instant tomb = tombstones.get(new EdgeKey(source, target));
+        if (tomb != null && ts.isBefore(tomb)) return;
+
         Map<String, Edge> outs = forward.computeIfAbsent(source, k -> new ConcurrentHashMap<>());
         Edge e = outs.get(target);
         if (e == null) {
@@ -32,6 +37,32 @@ public class GraphStore {
         }
         e.touch(ts);
         e.getStats().add(new Sample(ts, latencyMs, status));
+        if (tomb != null) tombstones.remove(new EdgeKey(source, target), tomb);
+    }
+
+    public void remove(String source, String target, Instant ts) {
+        EdgeKey k = new EdgeKey(source, target);
+        tombstones.merge(k, ts, (a, b) -> a.isAfter(b) ? a : b);
+
+        Map<String, Edge> outs = forward.get(source);
+        if (outs == null) return;
+        Edge e = outs.get(target);
+        if (e == null) return;
+        if (e.getLastEventTs().isAfter(ts)) return;
+        outs.remove(target);
+        if (outs.isEmpty()) forward.remove(source, outs);
+        Set<String> srcs = reverse.get(target);
+        if (srcs != null) srcs.remove(source);
+    }
+
+    public int sweepTombstones(Instant now) {
+        long ttl = props.getTombstoneTtlSeconds();
+        Instant cutoff = now.minusSeconds(ttl);
+        int removed = 0;
+        for (Map.Entry<EdgeKey, Instant> e : tombstones.entrySet()) {
+            if (e.getValue().isBefore(cutoff) && tombstones.remove(e.getKey(), e.getValue())) removed++;
+        }
+        return removed;
     }
 
     private ServiceNode ensureNode(String id) {
