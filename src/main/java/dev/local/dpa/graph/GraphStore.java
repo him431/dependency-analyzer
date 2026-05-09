@@ -23,6 +23,9 @@ public class GraphStore {
     public GraphStore(AppProps props) { this.props = props; }
 
     public void observe(String source, String target, Instant ts, long latencyMs, Status status) {
+        if (source == null || target == null || ts == null || status == null) {
+            throw new IllegalArgumentException("null field in observe");
+        }
         ensureNode(source);
         ensureNode(target);
 
@@ -46,6 +49,9 @@ public class GraphStore {
     }
 
     public void remove(String source, String target, Instant ts) {
+        if (source == null || target == null || ts == null) {
+            throw new IllegalArgumentException("null field in remove");
+        }
         EdgeKey k = new EdgeKey(source, target);
         tombstones.merge(k, ts, (a, b) -> a.isAfter(b) ? a : b);
 
@@ -63,10 +69,12 @@ public class GraphStore {
     }
 
     public void updateMetadata(String service, Map<String, String> attrs, Instant ts) {
+        if (service == null || ts == null) throw new IllegalArgumentException();
         ensureNode(service).updateAttributes(attrs, ts);
     }
 
     public void heartbeat(String service, Instant ts) {
+        if (service == null || ts == null) throw new IllegalArgumentException();
         ensureNode(service).heartbeat(ts);
     }
 
