@@ -39,13 +39,17 @@ public class Snapshot {
     private final ObjectMapper json;
     private final GraphStore graph;
     private final Wal wal;
+    private volatile boolean armed = false;
 
     public Snapshot(AppProps props, ObjectMapper json, GraphStore graph, Wal wal) {
         this.props = props; this.json = json; this.graph = graph; this.wal = wal;
     }
 
+    public void arm() { armed = true; }
+
     @Scheduled(fixedDelayString = "${app.snapshot-interval-seconds:30}000")
     public void scheduled() {
+        if (!armed) return;
         try { take(); } catch (Exception e) { log.warn("snapshot failed: {}", e.toString()); }
     }
 

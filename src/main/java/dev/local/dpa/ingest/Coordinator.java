@@ -84,6 +84,7 @@ public class Coordinator {
                 }
             }
         }
+        snapshot.arm();
         log.info("up: {}p/{}c, snapshot={}", props.getProducers(), props.getConsumers(), loaded);
     }
 
