@@ -15,6 +15,7 @@ public class GraphStore {
 
     private final AppProps props;
     private final Map<String, Map<String, Edge>> forward = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> reverse = new ConcurrentHashMap<>();
     private final Map<String, ServiceNode> nodes = new ConcurrentHashMap<>();
 
     public GraphStore(AppProps props) { this.props = props; }
@@ -27,6 +28,7 @@ public class GraphStore {
         if (e == null) {
             e = new Edge(source, target, props.getRollingBuffer(), ts);
             outs.put(target, e);
+            reverse.computeIfAbsent(target, k -> ConcurrentHashMap.newKeySet()).add(source);
         }
         e.touch(ts);
         e.getStats().add(new Sample(ts, latencyMs, status));
@@ -53,5 +55,10 @@ public class GraphStore {
     public Map<String, Edge> outgoing(String source) {
         Map<String, Edge> m = forward.get(source);
         return m == null ? Collections.<String, Edge>emptyMap() : m;
+    }
+
+    public Set<String> incoming(String target) {
+        Set<String> s = reverse.get(target);
+        return s == null ? Collections.<String>emptySet() : s;
     }
 }

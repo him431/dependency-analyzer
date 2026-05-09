@@ -19,24 +19,28 @@ public class Reach {
 
     public Reach(GraphStore graph) { this.graph = graph; }
 
-    public Map<String, List<String>> downstream(String source) {
+    public Map<String, List<String>> downstream(String source) { return bfs(source, true); }
+    public Map<String, List<String>> upstream(String target) { return bfs(target, false); }
+
+    private Map<String, List<String>> bfs(String start, boolean forward) {
         Map<String, List<String>> result = new LinkedHashMap<>();
-        if (!graph.hasService(source)) return result;
+        if (!graph.hasService(start)) return result;
 
         Map<String, String> parent = new HashMap<>();
         Deque<String> q = new ArrayDeque<>();
-        q.add(source);
-        parent.put(source, null);
+        q.add(start);
+        parent.put(start, null);
 
         while (!q.isEmpty()) {
             String cur = q.removeFirst();
-            for (String n : graph.outgoing(cur).keySet()) {
+            Iterable<String> next = forward ? graph.outgoing(cur).keySet() : graph.incoming(cur);
+            for (String n : next) {
                 if (parent.containsKey(n)) continue;
                 parent.put(n, cur);
                 q.addLast(n);
                 List<String> p = new ArrayList<>();
                 for (String c = n; c != null; c = parent.get(c)) p.add(c);
-                Collections.reverse(p);
+                if (forward) Collections.reverse(p);
                 result.put(n, p);
             }
         }
