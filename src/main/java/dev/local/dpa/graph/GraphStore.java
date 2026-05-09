@@ -29,15 +29,19 @@ public class GraphStore {
         Instant tomb = tombstones.get(new EdgeKey(source, target));
         if (tomb != null && ts.isBefore(tomb)) return;
 
+        // forward + reverse must be a single critical section per (src, tgt)
+        // otherwise concurrent remove can leave the maps out of sync
         Map<String, Edge> outs = forward.computeIfAbsent(source, k -> new ConcurrentHashMap<>());
-        Edge e = outs.get(target);
-        if (e == null) {
-            e = new Edge(source, target, props.getRollingBuffer(), ts);
-            outs.put(target, e);
-            reverse.computeIfAbsent(target, k -> ConcurrentHashMap.newKeySet()).add(source);
-        }
-        e.touch(ts);
-        e.getStats().add(new Sample(ts, latencyMs, status));
+        outs.compute(target, (t, existing) -> {
+            Edge e = existing;
+            if (e == null) {
+                e = new Edge(source, target, props.getRollingBuffer(), ts);
+                reverse.computeIfAbsent(target, k -> ConcurrentHashMap.newKeySet()).add(source);
+            }
+            e.touch(ts);
+            e.getStats().add(new Sample(ts, latencyMs, status));
+            return e;
+        });
         if (tomb != null) tombstones.remove(new EdgeKey(source, target), tomb);
     }
 
@@ -47,13 +51,15 @@ public class GraphStore {
 
         Map<String, Edge> outs = forward.get(source);
         if (outs == null) return;
-        Edge e = outs.get(target);
-        if (e == null) return;
-        if (e.getLastEventTs().isAfter(ts)) return;
-        outs.remove(target);
-        if (outs.isEmpty()) forward.remove(source, outs);
-        Set<String> srcs = reverse.get(target);
-        if (srcs != null) srcs.remove(source);
+        outs.compute(target, (t, existing) -> {
+            if (existing == null) return null;
+            if (existing.getLastEventTs().isAfter(ts)) return existing;
+            Set<String> srcs = reverse.get(target);
+            if (srcs != null) srcs.remove(source);
+            return null;
+        });
+        Map<String, Edge> after = forward.get(source);
+        if (after != null && after.isEmpty()) forward.remove(source, after);
     }
 
     public void updateMetadata(String service, Map<String, String> attrs, Instant ts) {
