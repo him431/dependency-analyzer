@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus, metrics
+
+app:
+  queue-capacity: 8192
+  producers: 2
+  consumers: 4
+  source-file: data/events.jsonl
+  auto-seed: true
+  dedup-capacity: 100000
+  rolling-buffer: 64
+  tombstone-ttl-seconds: 3600
+  data-dir: data
+  snapshot-interval-seconds: 30
+  generator:
+    services: 3000
+    events: 30000
+    seed: 42
