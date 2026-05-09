@@ -1,5 +1,6 @@
 package dev.local.dpa.ingest;
 
+import dev.local.dpa.config.AppProps;
 import dev.local.dpa.event.Observed;
 import dev.local.dpa.event.Status;
 import dev.local.dpa.graph.GraphFixtures;
@@ -14,7 +15,7 @@ class IdempotencyTest {
 
     @Test
     void same_event_id_processed_once() {
-        Dedup dedup = new Dedup();
+        Dedup dedup = new Dedup(new AppProps());
         GraphStore g = GraphFixtures.newStore();
         EventApplier applier = new EventApplier(g);
         Observed e = new Observed("e1", Instant.parse("2026-05-09T10:00:00Z"),
