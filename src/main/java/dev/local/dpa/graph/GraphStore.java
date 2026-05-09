@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -99,5 +100,15 @@ public class GraphStore {
     public Set<String> incoming(String target) {
         Set<String> s = reverse.get(target);
         return s == null ? Collections.<String>emptySet() : s;
+    }
+
+    public Set<Edge> incidentEdges(String service) {
+        Set<Edge> out = new HashSet<>();
+        out.addAll(outgoing(service).values());
+        for (String src : incoming(service)) {
+            Edge e = outgoing(src).get(service);
+            if (e != null) out.add(e);
+        }
+        return out;
     }
 }
