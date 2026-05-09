@@ -5,6 +5,7 @@ import dev.local.dpa.config.AppProps;
 import dev.local.dpa.persist.Snapshot;
 import dev.local.dpa.persist.Wal;
 import dev.local.dpa.queue.EventQueue;
+import dev.local.dpa.tools.DataGen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -36,6 +37,7 @@ public class Coordinator {
     private final EventApplier applier;
     private final Metrics metrics;
     private final ObjectMapper json;
+    private final DataGen gen;
 
     private final AtomicBoolean producersUp = new AtomicBoolean(true);
     private final AtomicBoolean consumersUp = new AtomicBoolean(true);
@@ -45,9 +47,10 @@ public class Coordinator {
     private JsonlSource source;
 
     public Coordinator(AppProps props, EventQueue queue, Dedup dedup, Wal wal, Snapshot snapshot,
-                       EventApplier applier, Metrics metrics, ObjectMapper json) {
+                       EventApplier applier, Metrics metrics, ObjectMapper json, DataGen gen) {
         this.props = props; this.queue = queue; this.dedup = dedup; this.wal = wal;
-        this.snapshot = snapshot; this.applier = applier; this.metrics = metrics; this.json = json;
+        this.snapshot = snapshot; this.applier = applier; this.metrics = metrics;
+        this.json = json; this.gen = gen;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -64,11 +67,21 @@ public class Coordinator {
         }
 
         Path src = Paths.get(props.getSourceFile());
-        if (Files.exists(src) && !loaded) {
-            source = new JsonlSource(src, json);
-            producerPool = Executors.newFixedThreadPool(props.getProducers(), named("producer"));
-            for (int i = 0; i < props.getProducers(); i++) {
-                producerPool.submit(new Producer("p" + i, queue, source, metrics, producersUp));
+        if (loaded) {
+            log.info("warm boot from snapshot, file producers idle");
+        } else {
+            if (!Files.exists(src) && props.isAutoSeed()) {
+                log.info("seeding {} events", props.getGenerator().getEvents());
+                gen.toFile(props.getGenerator().getServices(),
+                        props.getGenerator().getEvents(),
+                        props.getGenerator().getSeed(), src);
+            }
+            if (Files.exists(src)) {
+                source = new JsonlSource(src, json);
+                producerPool = Executors.newFixedThreadPool(props.getProducers(), named("producer"));
+                for (int i = 0; i < props.getProducers(); i++) {
+                    producerPool.submit(new Producer("p" + i, queue, source, metrics, producersUp));
+                }
             }
         }
         log.info("up: {}p/{}c, snapshot={}", props.getProducers(), props.getConsumers(), loaded);
