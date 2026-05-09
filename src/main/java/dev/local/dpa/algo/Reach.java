@@ -22,6 +22,9 @@ public class Reach {
     public Map<String, List<String>> downstream(String source) { return bfs(source, true); }
     public Map<String, List<String>> upstream(String target) { return bfs(target, false); }
 
+    public int countDownstream(String source) { return bfs(source, true).size(); }
+    public int countUpstream(String target) { return bfs(target, false).size(); }
+
     private Map<String, List<String>> bfs(String start, boolean forward) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         if (!graph.hasService(start)) return result;
