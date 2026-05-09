@@ -55,6 +55,14 @@ public class GraphStore {
         if (srcs != null) srcs.remove(source);
     }
 
+    public void updateMetadata(String service, Map<String, String> attrs, Instant ts) {
+        ensureNode(service).updateAttributes(attrs, ts);
+    }
+
+    public void heartbeat(String service, Instant ts) {
+        ensureNode(service).heartbeat(ts);
+    }
+
     public int sweepTombstones(Instant now) {
         long ttl = props.getTombstoneTtlSeconds();
         Instant cutoff = now.minusSeconds(ttl);
